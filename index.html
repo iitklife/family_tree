@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IITK Family Tree — Fast Viewer</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --line: #d9deea;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --danger: #dc2626;
+      --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(246, 247, 251, 0.94);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topbar {
+      max-width: 1280px;
+      margin: auto;
+      padding: 18px;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 4vw, 38px);
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .pill strong { color: var(--text); }
+
+    .search-panel {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 10px;
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      padding: 13px 15px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      font-size: 15px;
+      outline: none;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      padding: 12px 15px;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+      white-space: nowrap;
+    }
+
+    button.secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--line);
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+
+    main {
+      max-width: 1280px;
+      margin: 20px auto;
+      padding: 0 18px 40px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .panel-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    #tree {
+      padding: 12px 10px 18px;
+      min-height: 420px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tree-inner {
+      min-width: 620px;
+    }
+
+    .node-row {
+      display: grid;
+      grid-template-columns: 32px 46px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 8px;
+      margin: 2px 0;
+      border-radius: 14px;
+      transition: background 0.12s ease;
+    }
+
+    .node-row:hover { background: #f8fafc; }
+
+    .node-row.highlight {
+      background: #fff7ed;
+      outline: 2px solid #fed7aa;
+    }
+
+    .toggle {
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      background: #f1f5f9;
+      color: var(--text);
+      font-size: 13px;
+      user-select: none;
+      cursor: pointer;
+    }
+
+    .toggle.empty {
+      opacity: 0.25;
+      cursor: default;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      object-fit: cover;
+      background: #e2e8f0;
+      border: 1px solid var(--line);
+      display: block;
+      flex: none;
+    }
+
+    .avatar-fallback {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid var(--line);
+      font-weight: 800;
+      font-size: 13px;
+      flex: none;
+    }
+
+    .big-avatar,
+    .big-avatar-fallback {
+      width: 96px;
+      height: 112px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: #e2e8f0;
+      flex: none;
+    }
+
+    .big-avatar {
+      object-fit: cover;
+      display: block;
+    }
+
+    .big-avatar-fallback {
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 900;
+      font-size: 24px;
+    }
+
+    .person { min-width: 0; }
+
+    .person-name {
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .person-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .badge {
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #fafafa;
+      white-space: nowrap;
+    }
+
+    .children {
+      margin-left: 24px;
+      padding-left: 18px;
+      border-left: 1px dashed var(--line);
+    }
+
+    .results {
+      max-height: calc(100vh - 210px);
+      overflow: auto;
+      padding: 10px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .result-card {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      background: #fff;
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .result-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    .path {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .loading,
+    .error {
+      padding: 30px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .error { color: var(--danger); }
+
+    mark {
+      background: #fef08a;
+      padding: 0 2px;
+      border-radius: 4px;
+    }
+
+    @media (max-width: 980px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .results {
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        padding: 14px 12px;
+      }
+
+      .title-row {
+        align-items: flex-start;
+      }
+
+      .stats {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .pill {
+        text-align: center;
+        padding: 8px 6px;
+        font-size: 12px;
+      }
+
+      .search-panel {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .search-panel input {
+        grid-column: 1 / -1;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px 10px;
+      }
+
+      main {
+        margin-top: 12px;
+        padding: 0 10px 28px;
+        gap: 12px;
+      }
+
+      .panel {
+        border-radius: 18px;
+      }
+
+      .panel-head {
+        padding: 13px 14px;
+      }
+
+      .hint {
+        font-size: 12px;
+      }
+
+      #tree {
+        padding: 10px 8px 14px;
+      }
+
+      .tree-inner {
+        min-width: 560px;
+      }
+
+      .result-card {
+        grid-template-columns: 84px minmax(0, 1fr);
+        border-radius: 18px;
+      }
+
+      .big-avatar,
+      .big-avatar-fallback {
+        width: 84px;
+        height: 98px;
+        border-radius: 18px;
+      }
+    }
+
+    @media (max-width: 430px) {
+      h1 {
+        font-size: 26px;
+      }
+
+      .subtitle {
+        font-size: 13px;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .result-card {
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 10px;
+        padding: 10px;
+      }
+
+      .big-avatar,
+      .big-avatar-fallback {
+        width: 72px;
+        height: 86px;
+        border-radius: 16px;
+      }
+
+      .path {
+        -webkit-line-clamp: 2;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div class="title-row">
+        <div>
+          <h1>IITK Family Tree</h1>
+          <p class="subtitle">Fast searchable viewer with lazy tree rendering and profile photos.</p>
+        </div>
+        <div class="stats">
+          <div class="pill">People: <strong id="peopleCount">—</strong></div>
+          <div class="pill">Roots: <strong id="rootCount">—</strong></div>
+          <div class="pill">Max depth: <strong id="depthCount">—</strong></div>
+        </div>
+      </div>
+
+      <div class="search-panel">
+        <input id="searchInput" placeholder="Search by name or roll number, e.g. 190624 or Harshul" autocomplete="off" />
+        <button id="searchBtn">Search</button>
+        <button id="collapseBtn" class="secondary">Collapse all</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Tree</h2>
+        <span class="hint">Click ▸ to open a branch</span>
+      </div>
+      <div id="tree"><div class="loading">Loading data.json...</div></div>
+    </section>
+
+    <aside class="panel">
+      <div class="panel-head">
+        <h2>Search results</h2>
+        <span class="hint" id="resultHint">Type and search</span>
+      </div>
+      <div id="results" class="results"></div>
+    </aside>
+  </main>
+
+  <script>
+    const DATA_URL = "/data.json";
+    const PHOTO_BASE_URL = "https://oa.cc.iitk.ac.in/Oa/Jsp/Photo/";
+
+    const state = {
+      roots: [],
+      flat: [],
+      byId: new Map(),
+      expanded: new Set(),
+      highlightedId: null,
+      lastQuery: "",
+    };
+
+    const treeEl = document.getElementById("tree");
+    const resultsEl = document.getElementById("results");
+    const searchInput = document.getElementById("searchInput");
+    const resultHint = document.getElementById("resultHint");
+
+    function splitName(raw) {
+      const text = String(raw || "Unknown").trim();
+      const idx = text.lastIndexOf("-");
+      if (idx === -1) return { full: text, name: text, roll: "" };
+      return {
+        full: text,
+        name: text.slice(0, idx).trim(),
+        roll: text.slice(idx + 1).trim(),
+      };
+    }
+
+    function normalize(text) {
+      return String(text || "").toLowerCase().split(String.fromCharCode(9)).join(" ").split("  ").join(" ").trim();
+    }
+
+    function photoUrlFromRoll(roll) {
+      if (!roll) return "";
+      return PHOTO_BASE_URL + encodeURIComponent(roll) + "_0.jpg";
+    }
+
+    function initialsFromName(name) {
+      const parts = normalize(name).split(" ").filter(Boolean).slice(0, 2);
+      const value = parts.map(part => part.charAt(0).toUpperCase()).join("");
+      return value || "?";
+    }
+
+    function createAvatar(item, big) {
+      const url = photoUrlFromRoll(item.roll);
+      const fallbackClass = big ? "big-avatar-fallback" : "avatar-fallback";
+      const imgClass = big ? "big-avatar" : "avatar";
+
+      if (!url) {
+        const fallback = document.createElement("div");
+        fallback.className = fallbackClass;
+        fallback.textContent = initialsFromName(item.name);
+        return fallback;
+      }
+
+      const img = document.createElement("img");
+      img.className = imgClass;
+      img.src = url;
+      img.alt = item.name + " photo";
+      img.loading = "lazy";
+      img.referrerPolicy = "no-referrer";
+      img.onerror = () => {
+        const fallback = document.createElement("div");
+        fallback.className = fallbackClass;
+        fallback.textContent = initialsFromName(item.name);
+        img.replaceWith(fallback);
+      };
+      return img;
+    }
+
+    function flattenTree(roots) {
+      const flat = [];
+      const byId = new Map();
+      let maxDepth = 0;
+      let idCounter = 0;
+
+      function visit(node, parentId, depth) {
+        const id = idCounter++;
+        const parsed = splitName(node.name);
+        const item = {
+          id,
+          raw: node,
+          parentId,
+          depth,
+          childIds: [],
+          childrenCount: Array.isArray(node.children) ? node.children.length : 0,
+          full: parsed.full,
+          name: parsed.name,
+          roll: parsed.roll,
+        };
+
+        flat.push(item);
+        byId.set(id, item);
+
+        if (parentId !== null && byId.has(parentId)) {
+          byId.get(parentId).childIds.push(id);
+        }
+
+        maxDepth = Math.max(maxDepth, depth);
+
+        if (Array.isArray(node.children)) {
+          node.children.forEach(child => visit(child, id, depth + 1));
+        }
+      }
+
+      roots.forEach(root => visit(root, null, 0));
+      return { flat, byId, maxDepth };
+    }
+
+    function getChildrenItems(item) {
+      return item.childIds.map(id => state.byId.get(id)).filter(Boolean);
+    }
+
+    function getPath(item) {
+      const parts = [];
+      let cur = item;
+      while (cur) {
+        parts.push(cur.name || cur.full);
+        cur = state.byId.get(cur.parentId);
+      }
+      return parts.reverse();
+    }
+
+    function expandPathTo(item) {
+      let cur = item;
+      while (cur && cur.parentId !== null) {
+        const parent = state.byId.get(cur.parentId);
+        if (parent) state.expanded.add(parent.id);
+        cur = parent;
+      }
+    }
+
+    function escapeRegExp(text) {
+      return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function highlightedText(text, query) {
+      const span = document.createElement("span");
+      if (!query) {
+        span.textContent = text;
+        return span;
+      }
+      const safeQuery = escapeRegExp(query.trim());
+      if (!safeQuery) {
+        span.textContent = text;
+        return span;
+      }
+      const regex = new RegExp("(" + safeQuery + ")", "ig");
+      const parts = String(text).split(regex);
+      parts.forEach(part => {
+        if (part.toLowerCase() === query.toLowerCase()) {
+          const mark = document.createElement("mark");
+          mark.textContent = part;
+          span.appendChild(mark);
+        } else {
+          span.appendChild(document.createTextNode(part));
+        }
+      });
+      return span;
+    }
+
+    function createNodeRow(item) {
+      const row = document.createElement("div");
+      row.className = "node-row" + (state.highlightedId === item.id ? " highlight" : "");
+      row.id = "node-" + item.id;
+
+      const toggle = document.createElement("div");
+      const hasChildren = item.childrenCount > 0;
+      toggle.className = "toggle" + (hasChildren ? "" : " empty");
+      toggle.textContent = hasChildren ? (state.expanded.has(item.id) ? "▾" : "▸") : "•";
+      if (hasChildren) {
+        toggle.addEventListener("click", () => {
+          if (state.expanded.has(item.id)) state.expanded.delete(item.id);
+          else state.expanded.add(item.id);
+          renderTree();
+          document.getElementById("node-" + item.id)?.scrollIntoView({ block: "center" });
+        });
+      }
+
+      const person = document.createElement("div");
+      person.className = "person";
+
+      const name = document.createElement("div");
+      name.className = "person-name";
+      name.appendChild(highlightedText(item.name, state.lastQuery));
+
+      const meta = document.createElement("div");
+      meta.className = "person-meta";
+      meta.textContent = item.roll ? "Roll: " + item.roll : "Roll not available";
+
+      person.append(name, meta);
+
+      const badge = document.createElement("div");
+      badge.className = "badge";
+      badge.textContent = item.childrenCount + " child" + (item.childrenCount === 1 ? "" : "ren");
+
+      row.append(toggle, createAvatar(item, false), person, badge);
+      return row;
+    }
+
+    function renderBranch(item, container) {
+      container.appendChild(createNodeRow(item));
+      if (!state.expanded.has(item.id)) return;
+
+      const children = getChildrenItems(item);
+      if (!children.length) return;
+
+      const childWrap = document.createElement("div");
+      childWrap.className = "children";
+      children.forEach(child => renderBranch(child, childWrap));
+      container.appendChild(childWrap);
+    }
+
+    function renderTree() {
+      const fragment = document.createDocumentFragment();
+      const wrapper = document.createElement("div");
+      wrapper.className = "tree-inner";
+      const rootItems = state.flat.filter(x => x.parentId === null);
+      rootItems.forEach(root => renderBranch(root, wrapper));
+      fragment.appendChild(wrapper);
+      treeEl.replaceChildren(fragment);
+    }
+
+    function search() {
+      const query = normalize(searchInput.value);
+      state.lastQuery = query;
+      state.highlightedId = null;
+
+      if (!query) {
+        resultsEl.innerHTML = "";
+        resultHint.textContent = "Type and search";
+        renderTree();
+        return;
+      }
+
+      const matches = state.flat
+        .filter(item => normalize(item.full).includes(query) || normalize(item.roll).includes(query))
+        .slice(0, 120);
+
+      resultHint.textContent = matches.length + (matches.length === 120 ? "+" : "") + " shown";
+      const fragment = document.createDocumentFragment();
+
+      if (!matches.length) {
+        const empty = document.createElement("div");
+        empty.className = "loading";
+        empty.textContent = "No matching person found.";
+        fragment.appendChild(empty);
+      }
+
+      matches.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "result-card";
+
+        const info = document.createElement("div");
+        info.className = "person";
+
+        const title = document.createElement("div");
+        title.className = "person-name";
+        title.appendChild(highlightedText(item.name, query));
+
+        const meta = document.createElement("div");
+        meta.className = "person-meta";
+        meta.textContent = item.roll ? "Roll: " + item.roll + " · " + item.childrenCount + " children" : item.childrenCount + " children";
+
+        const path = document.createElement("div");
+        path.className = "path";
+        path.textContent = getPath(item).join(" → ");
+
+        info.append(title, meta, path);
+        card.append(createAvatar(item, true), info);
+        card.addEventListener("click", () => {
+          state.highlightedId = item.id;
+          expandPathTo(item);
+          renderTree();
+          requestAnimationFrame(() => {
+            document.getElementById("node-" + item.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          });
+        });
+        fragment.appendChild(card);
+      });
+
+      resultsEl.replaceChildren(fragment);
+      renderTree();
+    }
+
+    function collapseAll() {
+      state.expanded.clear();
+      state.highlightedId = null;
+      renderTree();
+    }
+
+    async function init() {
+      try {
+        const response = await fetch(DATA_URL, { cache: "force-cache" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+
+        state.roots = Array.isArray(data) ? data : [data];
+        const result = flattenTree(state.roots);
+        state.flat = result.flat;
+        state.byId = result.byId;
+
+        document.getElementById("peopleCount").textContent = state.flat.length.toLocaleString();
+        document.getElementById("rootCount").textContent = state.roots.length.toLocaleString();
+        document.getElementById("depthCount").textContent = result.maxDepth.toLocaleString();
+
+        renderTree();
+      } catch (err) {
+        console.error(err);
+        treeEl.innerHTML = "<div class='error'>Could not load data.json. If you are opening this file locally, host it with a small server or place data.json in the same folder and change DATA_URL.</div>";
+      }
+    }
+
+    document.getElementById("searchBtn").addEventListener("click", search);
+    document.getElementById("collapseBtn").addEventListener("click", collapseAll);
+    searchInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") search();
+    });
+
+    let timer = null;
+    searchInput.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const value = searchInput.value.trim();
+        if (value.length >= 2 || value.length === 0) search();
+      }, 220);
+    });
+
+    init();
+  </script>
+</body>
+</html>
